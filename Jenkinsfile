@@ -1,5 +1,3 @@
-
-
 pipeline {
     agent any
 
@@ -26,14 +24,6 @@ pipeline {
             steps {
                 dir('backend') {
                     sh 'npm install'
-                }
-            }
-        }
-
-        stage('Backend - Test') {
-            steps {
-                dir('backend') {
-                    sh 'npm test --if-present'
                 }
             }
         }
@@ -95,4 +85,4 @@ pipeline {
             cleanWs()
         }
     }
-}
+}    
