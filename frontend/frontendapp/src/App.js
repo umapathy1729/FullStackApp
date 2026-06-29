@@ -7,7 +7,7 @@ function App() {
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
-    fetch('/api/message')
+    fetch('http://backend-service:5000/api/message')
       .then(res => res.json())
       .then(data => {
         setMessage(data.message || 'Connected to backend!');
