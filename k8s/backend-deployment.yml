@@ -15,6 +15,6 @@ spec:
     spec:
       containers:
       - name: backend
-        image: your-aws-account-id.dkr.ecr.ap-south-1.amazonaws.com/fullstack-backend:latest
+        image: 145736415520.dkr.ecr.ap-south-1.amazonaws.com/fullstack-backend:latest
         ports:
         - containerPort: 5000  
