@@ -5,6 +5,10 @@ pipeline {
         SONAR_PROJECT_KEY  = 'FullStackApp'
         SONAR_PROJECT_NAME = 'FullStackApp'
         SONAR_SERVER_NAME  = 'SonarQube'
+        AWS_REGION         = 'ap-south-1'
+        AWS_ACCOUNT_ID     = 'your-aws-account-id'
+        ECR_BACKEND        = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/fullstack-backend"
+        ECR_FRONTEND       = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/fullstack-frontend"
     }
 
     tools {
@@ -52,8 +56,7 @@ pipeline {
                           -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                           -Dsonar.projectName=${SONAR_PROJECT_NAME} \
                           -Dsonar.sources=. \
-                          -Dsonar.exclusions=**/node_modules/**,**/build/**,**/dist/**,**/*.test.js \
-                          -Dsonar.javascript.lcov.reportPaths=backend/coverage/lcov.info,frontend/frontendapp/coverage/lcov.info
+                          -Dsonar.exclusions=**/node_modules/**,**/build/**,**/dist/**,**/*.test.js
                     """
                 }
             }
@@ -67,9 +70,48 @@ pipeline {
             }
         }
 
-        stage('Archive') {
+        stage('Docker Build') {
             steps {
-                archiveArtifacts artifacts: 'frontend/frontendapp/build/**', allowEmptyArchive: true
+                sh 'docker build -t ${ECR_BACKEND}:latest ./backend'
+                sh 'docker build -t ${ECR_FRONTEND}:latest ./frontend/frontendapp'
+            }
+        }
+
+        stage('Push to ECR') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    sh """
+                        aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                        aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                        aws configure set region ${AWS_REGION}
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                        docker push ${ECR_BACKEND}:latest
+                        docker push ${ECR_FRONTEND}:latest
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    sh """
+                        aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                        aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                        aws configure set region ${AWS_REGION}
+                        aws eks update-kubeconfig --region ${AWS_REGION} --name fullstack-cluster
+                        kubectl apply -f k8s/backend-deployment.yml
+                        kubectl apply -f k8s/backend-service.yml
+                        kubectl apply -f k8s/frontend-deployment.yml
+                        kubectl apply -f k8s/frontend-service.yml
+                    """
+                }
             }
         }
     }
@@ -85,4 +127,5 @@ pipeline {
             cleanWs()
         }
     }
-}    
+}
+    
